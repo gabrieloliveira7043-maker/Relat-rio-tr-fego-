@@ -498,6 +498,7 @@ tr:hover td { background: var(--surface2); }
   }
 .btn-manage-stages:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-glow2); }
 .stages-modal .modal-box { max-width: 400px; }
+#stages-modal.open { display: flex !important; }
 .stage-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .stage-item input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--fg); font-size: 13px; }
 .stage-item .btn-del-stage { background: none; border: none; color: var(--red); cursor: pointer; font-size: 16px; padding: 0 4px; }
@@ -725,6 +726,7 @@ function openStagesModal() {
   if (!act) { alert('Selecione um cliente primeiro.'); return; }
   const stages = getStages(act);
   const list = document.getElementById('stages-list');
+  if (!list) { console.error('stages-list not found'); return; }
   list.innerHTML = '';
   stages.forEach((s, i) => {
     const item = document.createElement('div');
@@ -736,7 +738,10 @@ function openStagesModal() {
       <button class="btn-del-stage" onclick="this.parentElement.remove()" title="Remover">×</button>`;
     list.appendChild(item);
   });
-  document.getElementById('stages-modal').classList.add('open');
+  const modal = document.getElementById('stages-modal');
+  if (!modal) { console.error('stages-modal not found'); return; }
+  modal.classList.add('open');
+  modal.style.display = 'flex';
 }
 
 function addCustomStageItem() {
@@ -763,7 +768,7 @@ function saveStagesFromModal() {
   });
   if (stages.length < 1) { alert('Adicione pelo menos uma coluna.'); return; }
   saveCustomStages(act, stages);
-  document.getElementById('stages-modal').classList.remove('open');
+  const sm=document.getElementById('stages-modal');sm.classList.remove('open');sm.style.display='none';
   renderKanban();
 }
 
@@ -979,7 +984,8 @@ function renderKanban() {
   let qtdFechado = 0;
   leads.forEach(l => {
     if (['fechado','fechou'].includes(l.stage) && l.valor) {
-      const val = parseFloat(l.valor.replace(',','.').replace(/[^0-9.]/g,''));
+      const raw = String(l.valor).replace(/[^0-9,\.]/g,'').replace(',','.');
+      const val = parseFloat(raw);
       if (!isNaN(val) && val > 0) {
         const dt = new Date(l.updatedAt || l.createdAt || 0);
         if (dt.getMonth() === mesAtual && dt.getFullYear() === anoAtual) {
@@ -991,13 +997,9 @@ function renderKanban() {
   });
   const banner = document.getElementById('valor-fechado-banner');
   if (banner) {
-    if (qtdFechado > 0) {
-      banner.style.display = 'flex';
-      document.getElementById('valor-fechado-total').textContent = 'R$ ' + totalFechado.toFixed(2).replace('.',',');
-      document.getElementById('valor-fechado-qtd').textContent = '(' + qtdFechado + ' fechamento' + (qtdFechado > 1 ? 's' : '') + ')';
-    } else {
-      banner.style.display = 'none';
-    }
+    banner.style.display = 'flex';
+    document.getElementById('valor-fechado-total').textContent = 'R$ ' + totalFechado.toFixed(2).replace('.',',');
+    document.getElementById('valor-fechado-qtd').textContent = qtdFechado > 0 ? '(' + qtdFechado + ' fechamento' + (qtdFechado > 1 ? 's' : '') + ' no mês)' : '(nenhum fechamento no mês)';
   }
 
   STAGES.forEach(stage => {
@@ -1079,20 +1081,15 @@ function openLeadModal() {
   document.getElementById('lead-proxima-data').value = '';
   document.getElementById('modal-title').textContent = 'Novo lead';
   document.getElementById('field-plantao').style.display = clinica ? 'block' : 'none';
-  document.getElementById('field-valor').style.display = 'none';
+  document.getElementById('field-valor').style.display = 'block';
   document.getElementById('field-motivo-perda').style.display = 'none';
-  // Mostrar valor se etapa já for fechado
-  const initStage = document.getElementById('lead-stage').value;
-  if (['fechado','fechou'].includes(initStage)) document.getElementById('field-valor').style.display = 'block';
   // update stage options
   const stageSelect = document.getElementById('lead-stage');
   const stages = clinica ? STAGES_CLINICA : STAGES_DEFAULT;
   stageSelect.innerHTML = stages.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
   document.getElementById('lead-stage').addEventListener('change', function() {
     const isPerdido = ['perdido','ncompareceu'].includes(this.value);
-    const isFechado = ['fechado','fechou'].includes(this.value);
     document.getElementById('field-motivo-perda').style.display = isPerdido ? 'block' : 'none';
-    document.getElementById('field-valor').style.display = isFechado ? 'block' : 'none';
   });
   document.getElementById('lead-modal').classList.add('open');
 }
@@ -1113,8 +1110,7 @@ function editLead(id) {
   document.getElementById('lead-proxima-acao').value = lead.proximaAcao || '';
   document.getElementById('lead-proxima-data').value = lead.proximaData || '';
   document.getElementById('field-plantao').style.display = clinica ? 'block' : 'none';
-  const isFechadoEdit = ['fechado','fechou'].includes(lead.stage);
-  document.getElementById('field-valor').style.display = isFechadoEdit ? 'block' : 'none';
+  document.getElementById('field-valor').style.display = 'block';
   document.getElementById('field-motivo-perda').style.display = (lead.stage === 'perdido' || lead.stage === 'ncompareceu') ? 'block' : 'none';
   const stageSelect = document.getElementById('lead-stage');
   const stages = clinica ? STAGES_CLINICA : STAGES_DEFAULT;
@@ -2174,7 +2170,7 @@ function onCrmClientChange() {
             <option value="Clareamento">Plantão do Clareamento</option>
           </select>
         </div>
-        <div class="modal-field" id="field-valor" style="display:none">
+        <div class="modal-field" id="field-valor">
           <label class="modal-label">Valor do fechamento (R$)</label>
           <input type="text" class="modal-input" id="lead-valor" placeholder="Ex: 3500,00">
         </div>
@@ -2208,16 +2204,16 @@ function onCrmClientChange() {
 
   
     <!-- Stages Manager Modal -->
-    <div class="modal-overlay stages-modal" id="stages-modal">
+    <div class="modal-overlay stages-modal" id="stages-modal" style="display:none;">
       <div class="modal-box">
         <div class="panel-header" style="margin-bottom:16px;">
           <div class="modal-title">Gerenciar colunas do kanban</div>
-          <button class="btn-close-panel" onclick="document.getElementById('stages-modal').classList.remove('open')">×</button>
+          <button class="btn-close-panel" onclick="const m=document.getElementById('stages-modal');m.classList.remove('open');m.style.display='none';">×</button>
         </div>
         <div id="stages-list"></div>
         <button class="btn-add-stage" onclick="addCustomStageItem()">+ Adicionar coluna</button>
         <div class="modal-footer" style="margin-top:16px;">
-          <button class="modal-btn-cancel" onclick="document.getElementById('stages-modal').classList.remove('open')">Cancelar</button>
+          <button class="modal-btn-cancel" onclick="const m=document.getElementById('stages-modal');m.classList.remove('open');m.style.display='none';">Cancelar</button>
           <button class="modal-btn-save" onclick="saveStagesFromModal()">Salvar colunas</button>
         </div>
       </div>
