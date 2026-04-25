@@ -695,47 +695,16 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
-async function doLogin() {
+function doLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
   const cred = CREDENTIALS[user];
-  // Map username to email for Firebase Auth
-  const emailMap = {
-    "admin": "admin@catapulta.com",
-    "raquel": "raquel@catapulta.com",
-    "vital": "vital@catapulta.com",
-    "petland": "petland@catapulta.com",
-    "contabiliza": "contabiliza@catapulta.com",
-    "english": "english@catapulta.com",
-    "thayelli": "thayelli@catapulta.com",
-    "adriana": "adriana@catapulta.com",
-    "travi": "travi@catapulta.com"
-  };
-  const email = emailMap[user];
-  if (!email || !cred) {
+  const effectivePass = getEffectivePassword(user);
+  if (!cred || effectivePass !== pass) {
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
     return;
   }
-  
-  const loginBtn = document.querySelector('#login-overlay .login-btn');
-  if (loginBtn) { loginBtn.textContent = 'Entrando...'; loginBtn.disabled = true; }
-  
-  // Wait for Firebase to be ready
-  if (!window._fbReady) {
-    await new Promise(resolve => window.addEventListener('fbready', resolve, { once: true }));
-  }
-  
-  try {
-    await window._fb.loginUser(email, pass);
-  } catch(e) {
-    console.error('Firebase login error:', e);
-    document.getElementById('login-error').style.display = 'block';
-    document.getElementById('login-pass').value = '';
-    if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
-    return;
-  }
-  if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
   document.getElementById('login-overlay').style.display = 'none';
   const accountId = cred.act;
   const clientName = CLIENT_NAMES[accountId] || user;
@@ -747,25 +716,19 @@ async function doLogin() {
     document.getElementById('page-title').textContent = 'Admin';
     document.getElementById('page-meta').textContent = 'Catapulta Digital';
   }
-  // sidebar-footer kept visible for logout button
   document.getElementById('welcome-state').style.display = 'none';
-  if (window.innerWidth <= 768) {
-    const mobileNavUrl = document.getElementById('mobile-nav');
-    if (mobileNavUrl) mobileNavUrl.style.display = 'flex';
-  }
-  updateMobileHeader();
   isAdmin = (user === 'admin');
   setupCrmForClient();
   renderSidebar();
   updateMobileHeader();
-  if (window.innerWidth <= 768) {
-    const mobileNav = document.getElementById('mobile-nav');
-    if (mobileNav) mobileNav.style.display = 'flex';
-    const mobileFilters = document.getElementById('mobile-filters');
-    if (mobileFilters) mobileFilters.style.display = 'flex';
-  }
+  updateSidebarForUser();
+  const mobileNav = document.getElementById('mobile-nav');
+  if (mobileNav) mobileNav.style.display = 'flex';
+  const mobileFilters = document.getElementById('mobile-filters');
+  if (mobileFilters) mobileFilters.style.display = 'flex';
   saveSession(user);
 }
+
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-overlay').style.display !== 'none') doLogin();
@@ -2118,7 +2081,7 @@ function onCrmClientChange() {
 
 <script>
 const STORAGE_KEY = 'meta_ads_clients_v2';
-const FIXED_TOKEN = "EAAL58zg0HzoBRdnOnZB7MQV6gYZC33k0hWhYRwFjCxFPxnuQWIAdxRDWdon9fXGCzKv5xZB9jFPLA4k4ZA3nt58Jyp8Kx5LNV1nta40ITHgG8rereYWff3ZATnLdwNQ8MKyXAjrg9sm5h2S7BJws0FvjhGRD7YSuhTbjZBf0XmWENYGjiwLZCLVC8vP5VcjYQ1u";
+const FIXED_TOKEN = "EAAL58zg0HzoBReKLADrMyNrl8fbqC10wtRA5OehrO5d7uqZAQiKNeaZAgSmmh8HTh1ex6mpyFAgRgoFRdJaDdsTJHh9ngENNB0HTpTbqz017cSS2varNrNSXmEYZBOtL55zl4RBEy2avyFqrBVmsLZBpOEjzvwylWNqYezzsZBuaW4ZCKoyygJZCIeZCQ2HNstil";
 let activeClient = null;
 let isAdmin = false;
 
