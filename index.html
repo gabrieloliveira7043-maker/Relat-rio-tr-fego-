@@ -45,6 +45,15 @@ body {
 .layout { display: flex; min-height: 100vh; }
 
 /* Sidebar */
+/* Esconder scrollbars mas manter rolagem */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 .sidebar {
   width: 220px; flex-shrink: 0;
   background: var(--surface); border-right: 1px solid var(--border);
