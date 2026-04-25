@@ -721,77 +721,96 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
+function getActForStages() {
+  // Para admin: pegar do dropdown. Para cliente: pegar do activeClient
+  if (isAdmin) {
+    const sel = document.getElementById('crm-client-select');
+    return sel && sel.value !== 'all' ? sel.value : null;
+  }
+  return crmClientFilter || (activeClient ? activeClient.account : null);
+}
+
 function editStageLabel(stageId) {
-  const act = crmClientFilter || (activeClient ? activeClient.account : '');
-  if (!act) return;
-  const titleEl = document.getElementById('col-title-' + stageId);
-  if (!titleEl) return;
-  const currentLabel = titleEl.textContent;
-  const input = document.createElement('input');
-  input.value = currentLabel;
-  input.style.cssText = 'background:var(--surface2);border:1px solid var(--accent);border-radius:4px;color:var(--fg);font-size:13px;font-weight:500;padding:2px 6px;width:120px;';
-  titleEl.replaceWith(input);
-  input.focus();
-  input.select();
-  const save = () => {
-    const newLabel = input.value.trim() || currentLabel;
-    const stages = getStages(act);
-    const updated = stages.map(s => s.id === stageId ? { ...s, label: newLabel } : s);
-    saveCustomStages(act, updated);
-    renderKanban();
-  };
-  input.addEventListener('blur', save);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } if (e.key === 'Escape') { input.value = currentLabel; input.blur(); } });
+  const act = getActForStages();
+  if (!act) { alert('Selecione um cliente específico primeiro.'); return; }
+  const currentStages = getStages(act);
+  const stage = currentStages.find(s => s.id === stageId);
+  if (!stage) return;
+  const currentLabel = stage.label;
+  const newLabel = prompt('Novo nome para a coluna:', currentLabel);
+  if (newLabel === null) return; // cancelou
+  const trimmed = newLabel.trim();
+  if (!trimmed) return;
+  const updated = currentStages.map(s => s.id === stageId ? { ...s, label: trimmed } : s);
+  saveCustomStages(act, updated);
+  renderKanban();
 }
 
 function openStagesModal() {
-  const act = crmClientFilter || (activeClient ? activeClient.account : '');
-  if (!act) { alert('Selecione um cliente primeiro.'); return; }
+  const act = getActForStages();
+  if (!act) { alert('Selecione um cliente específico para gerenciar as colunas.'); return; }
   const stages = getStages(act);
   const list = document.getElementById('stages-list');
-  if (!list) { console.error('stages-list not found'); return; }
+  if (!list) return;
   list.innerHTML = '';
-  stages.forEach((s, i) => {
+  stages.forEach((s) => {
     const item = document.createElement('div');
     item.className = 'stage-item';
-    item.dataset.idx = i;
-    item.innerHTML = `
-      <span class="stage-drag" title="Arrastar">☰</span>
-      <input type="text" value="${s.label}" placeholder="Nome da coluna">
-      <button class="btn-del-stage" onclick="this.parentElement.remove()" title="Remover">×</button>`;
+    item.dataset.stageid = s.id;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = s.label;
+    inp.placeholder = 'Nome da coluna';
+    const del = document.createElement('button');
+    del.className = 'btn-del-stage';
+    del.textContent = '×';
+    del.title = 'Remover coluna';
+    del.onclick = () => item.remove();
+    item.appendChild(document.createTextNode('☰ '));
+    item.appendChild(inp);
+    item.appendChild(del);
     list.appendChild(item);
   });
   const modal = document.getElementById('stages-modal');
-  if (!modal) { console.error('stages-modal not found'); return; }
-  modal.classList.add('open');
+  if (!modal) return;
   modal.style.display = 'flex';
 }
 
 function addCustomStageItem() {
   const list = document.getElementById('stages-list');
+  if (!list) return;
   const item = document.createElement('div');
   item.className = 'stage-item';
-  item.innerHTML = `
-    <span class="stage-drag" title="Arrastar">☰</span>
-    <input type="text" value="" placeholder="Nome da coluna">
-    <button class="btn-del-stage" onclick="this.parentElement.remove()">×</button>`;
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = '';
+  inp.placeholder = 'Nome da nova coluna';
+  const del = document.createElement('button');
+  del.className = 'btn-del-stage';
+  del.textContent = '×';
+  del.onclick = () => item.remove();
+  item.appendChild(document.createTextNode('☰ '));
+  item.appendChild(inp);
+  item.appendChild(del);
   list.appendChild(item);
+  inp.focus();
 }
 
 function saveStagesFromModal() {
-  const act = crmClientFilter || (activeClient ? activeClient.account : '');
+  const act = getActForStages();
   if (!act) return;
   const items = document.querySelectorAll('#stages-list .stage-item input');
   const stages = [];
   items.forEach((inp, i) => {
     const label = inp.value.trim();
     if (!label) return;
-    const id = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') + '_' + i;
+    const id = 'stage_' + i + '_' + Date.now();
     stages.push({ id, label, cls: stageColor(i) });
   });
   if (stages.length < 1) { alert('Adicione pelo menos uma coluna.'); return; }
   saveCustomStages(act, stages);
-  const sm=document.getElementById('stages-modal');sm.classList.remove('open');sm.style.display='none';
+  const modal = document.getElementById('stages-modal');
+  if (modal) modal.style.display = 'none';
   renderKanban();
 }
 
@@ -993,34 +1012,66 @@ function renderKanban() {
     col.className = `kanban-col ${stage.cls}`;
     col.dataset.stage = stage.id;
 
-    col.innerHTML = `
-      <div class="kanban-col-header">
-        <div style="display:flex;align-items:center;gap:4px;flex:1;">
-          <div class="kanban-col-title" id="col-title-${stage.id}">${stage.label}</div>
-          <button onclick="editStageLabel('${stage.id}')" title="Renomear coluna" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✏️</button>
-        </div>
-        <span class="kanban-col-count">${stageLeads.length}</span>
-      </div>
-      <div class="kanban-cards" id="col-${stage.id}">
-        ${stageLeads.length === 0 ? '<div style="font-size:12px; color:var(--muted); text-align:center; padding: 12px 0;">Nenhum lead</div>' : ''}
-        ${stageLeads.map(lead => `
-          <div class="kanban-card" draggable="true" data-id="${lead.id}"
-            ondragstart="onDragStart(event)" ondragend="onDragEnd(event)">
-            ${lead.origem ? `<div class="card-origem">📍 ${lead.origem}</div>` : ''}
-            <div class="card-name">${lead.name}</div>
-            <div class="card-phone">${lead.phone || '—'}</div>
-            <div class="card-email">${lead.email || '—'}</div>
-            ${lead.obs ? `<div class="card-obs">💬 ${lead.obs}</div>` : ''}
-            ${lead.proximaAcao ? `<div class="card-proxima">⏰ ${lead.proximaAcao}${lead.proximaData ? ' · ' + new Date(lead.proximaData + 'T12:00:00').toLocaleDateString('pt-BR') : ''}</div>` : ''}
-            <div style="font-size:10px;color:var(--muted);margin-top:4px;">${lead.createdAt ? 'Entrada: ' + new Date(lead.createdAt).toLocaleDateString('pt-BR') : ''}</div>
-            <div class="card-actions">
-              <button class="card-btn" onclick="editLead('${lead.id}')">Editar</button>
-              <button class="card-btn" onclick="openMoveModal('${lead.id}')">Mover</button>
-              <button class="card-btn" onclick="showHistory('${lead.id}')">Hist.</button>
-              <button class="card-btn del" onclick="deleteLead('${lead.id}')">✕</button>
-            </div>
-          </div>`).join('')}
+    // Header
+    const header = document.createElement('div');
+    header.className = 'kanban-col-header';
+    const headerLeft = document.createElement('div');
+    headerLeft.style.cssText = 'display:flex;align-items:center;gap:4px;flex:1;';
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'kanban-col-title';
+    titleDiv.id = 'col-title-' + stage.id;
+    titleDiv.textContent = stage.label;
+    const editBtn = document.createElement('button');
+    editBtn.title = 'Renomear coluna';
+    editBtn.textContent = '✏️';
+    editBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;';
+    editBtn.onmouseover = () => editBtn.style.opacity = '1';
+    editBtn.onmouseout = () => editBtn.style.opacity = '0.6';
+    editBtn.addEventListener('click', () => editStageLabel(stage.id));
+    const countSpan = document.createElement('span');
+    countSpan.className = 'kanban-col-count';
+    countSpan.textContent = stageLeads.length;
+    headerLeft.appendChild(titleDiv);
+    headerLeft.appendChild(editBtn);
+    header.appendChild(headerLeft);
+    header.appendChild(countSpan);
+    col.appendChild(header);
+
+    // Cards container
+    const cardsDiv = document.createElement('div');
+    cardsDiv.className = 'kanban-cards';
+    cardsDiv.id = 'col-' + stage.id;
+    if (stageLeads.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:12px;color:var(--muted);text-align:center;padding:12px 0;';
+      empty.textContent = 'Nenhum lead';
+      cardsDiv.appendChild(empty);
+    }
+    stageLeads.forEach(lead => {
+      const card = document.createElement('div');
+      card.className = 'kanban-card';
+      card.draggable = true;
+      card.dataset.id = lead.id;
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragend', onDragEnd);
+      let cardHTML = '';
+      if (lead.origem) cardHTML += `<div class="card-origem">📍 ${lead.origem}</div>`;
+      cardHTML += `<div class="card-name">${lead.name}</div>`;
+      cardHTML += `<div class="card-phone">${lead.phone || '—'}</div>`;
+      cardHTML += `<div class="card-email">${lead.email || '—'}</div>`;
+      if (lead.obs) cardHTML += `<div class="card-obs">💬 ${lead.obs}</div>`;
+      if (lead.proximaAcao) cardHTML += `<div class="card-proxima">⏰ ${lead.proximaAcao}${lead.proximaData ? ' · ' + new Date(lead.proximaData + 'T12:00:00').toLocaleDateString('pt-BR') : ''}</div>`;
+      if (lead.createdAt) cardHTML += `<div style="font-size:10px;color:var(--muted);margin-top:4px;">Entrada: ${new Date(lead.createdAt).toLocaleDateString('pt-BR')}</div>`;
+      cardHTML += `<div class="card-actions">
+        <button class="card-btn" onclick="editLead('${lead.id}')">Editar</button>
+        <button class="card-btn" onclick="openMoveModal('${lead.id}')">Mover</button>
+        <button class="card-btn" onclick="showHistory('${lead.id}')">Hist.</button>
+        <button class="card-btn del" onclick="deleteLead('${lead.id}')">✕</button>
       </div>`;
+      card.innerHTML = cardHTML;
+      cardsDiv.appendChild(card);
+    });
+    col.appendChild(cardsDiv);
 
     col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
     col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
@@ -2197,12 +2248,12 @@ function onCrmClientChange() {
       <div class="modal-box">
         <div class="panel-header" style="margin-bottom:16px;">
           <div class="modal-title">Gerenciar colunas do kanban</div>
-          <button class="btn-close-panel" onclick="const m=document.getElementById('stages-modal');m.classList.remove('open');m.style.display='none';">×</button>
+          <button class="btn-close-panel" onclick="document.getElementById('stages-modal').style.display='none';">×</button>
         </div>
         <div id="stages-list"></div>
         <button class="btn-add-stage" onclick="addCustomStageItem()">+ Adicionar coluna</button>
         <div class="modal-footer" style="margin-top:16px;">
-          <button class="modal-btn-cancel" onclick="const m=document.getElementById('stages-modal');m.classList.remove('open');m.style.display='none';">Cancelar</button>
+          <button class="modal-btn-cancel" onclick="document.getElementById('stages-modal').style.display='none';">Cancelar</button>
           <button class="modal-btn-save" onclick="saveStagesFromModal()">Salvar colunas</button>
         </div>
       </div>
@@ -2802,12 +2853,119 @@ const STAGES_CLINICA = [
 
 const CLINICA_ACTS = ['act_1324786597927962', 'act_1311713804053571', 'act_728532149829958', 'act_379348482601330', 'act_456685107743703'];
 
+function getCustomStages(act) {
+  try {
+    const raw = localStorage.getItem('custom_stages_' + act);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveCustomStages(act, stages) {
+  localStorage.setItem('custom_stages_' + act, JSON.stringify(stages));
+}
+
 function getStages(act) {
+  try {
+    const raw = localStorage.getItem('custom_stages_' + act);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.length) return parsed;
+    }
+  } catch(e) {}
   return CLINICA_ACTS.includes(act) ? STAGES_CLINICA : STAGES_DEFAULT;
 }
 
 function isClinicaClient(act) {
   return CLINICA_ACTS.includes(act);
+}
+
+const STAGE_COLORS_ARR = ['col-novo','col-contato','col-proposta','col-fechado','col-perdido'];
+function stageColor(idx) { return STAGE_COLORS_ARR[idx % STAGE_COLORS_ARR.length]; }
+
+function getActForStages() {
+  if (typeof isAdmin !== 'undefined' && isAdmin) {
+    const sel = document.getElementById('crm-client-select');
+    return sel && sel.value !== 'all' ? sel.value : null;
+  }
+  return (typeof crmClientFilter !== 'undefined' && crmClientFilter) || (typeof activeClient !== 'undefined' && activeClient ? activeClient.account : null);
+}
+
+function editStageLabel(stageId) {
+  const act = getActForStages();
+  if (!act) { alert('Selecione um cliente específico primeiro.'); return; }
+  const currentStages = getStages(act);
+  const stage = currentStages.find(s => s.id === stageId);
+  if (!stage) return;
+  const newLabel = prompt('Novo nome para a coluna:', stage.label);
+  if (newLabel === null || !newLabel.trim()) return;
+  const updated = currentStages.map(s => s.id === stageId ? { ...s, label: newLabel.trim() } : s);
+  saveCustomStages(act, updated);
+  renderKanban();
+}
+
+function openStagesModal() {
+  const act = getActForStages();
+  if (!act) { alert('Selecione um cliente específico para gerenciar as colunas.'); return; }
+  const stages = getStages(act);
+  const list = document.getElementById('stages-list');
+  if (!list) return;
+  list.innerHTML = '';
+  stages.forEach((s) => {
+    const item = document.createElement('div');
+    item.className = 'stage-item';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = s.label;
+    inp.placeholder = 'Nome da coluna';
+    const del = document.createElement('button');
+    del.className = 'btn-del-stage';
+    del.textContent = '×';
+    del.onclick = () => item.remove();
+    item.appendChild(document.createTextNode('☰ '));
+    item.appendChild(inp);
+    item.appendChild(del);
+    list.appendChild(item);
+  });
+  const modal = document.getElementById('stages-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+}
+
+function addCustomStageItem() {
+  const list = document.getElementById('stages-list');
+  if (!list) return;
+  const item = document.createElement('div');
+  item.className = 'stage-item';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = '';
+  inp.placeholder = 'Nome da nova coluna';
+  const del = document.createElement('button');
+  del.className = 'btn-del-stage';
+  del.textContent = '×';
+  del.onclick = () => item.remove();
+  item.appendChild(document.createTextNode('☰ '));
+  item.appendChild(inp);
+  item.appendChild(del);
+  list.appendChild(item);
+  inp.focus();
+}
+
+function saveStagesFromModal() {
+  const act = getActForStages();
+  if (!act) return;
+  const items = document.querySelectorAll('#stages-list .stage-item input');
+  const stages = [];
+  items.forEach((inp, i) => {
+    const label = inp.value.trim();
+    if (!label) return;
+    stages.push({ id: 'col_' + i + '_' + Date.now(), label, cls: stageColor(i) });
+  });
+  if (stages.length < 1) { alert('Adicione pelo menos uma coluna.'); return; }
+  saveCustomStages(act, stages);
+  const modal = document.getElementById('stages-modal');
+  if (modal) modal.style.display = 'none';
+  renderKanban();
 }
 
 const CRM_KEY = 'catapulta_crm_v1';
@@ -2938,34 +3096,66 @@ function renderKanban() {
     col.className = `kanban-col ${stage.cls}`;
     col.dataset.stage = stage.id;
 
-    col.innerHTML = `
-      <div class="kanban-col-header">
-        <div style="display:flex;align-items:center;gap:4px;flex:1;">
-          <div class="kanban-col-title" id="col-title-${stage.id}">${stage.label}</div>
-          <button onclick="editStageLabel('${stage.id}')" title="Renomear coluna" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✏️</button>
-        </div>
-        <span class="kanban-col-count">${stageLeads.length}</span>
-      </div>
-      <div class="kanban-cards" id="col-${stage.id}">
-        ${stageLeads.length === 0 ? '<div style="font-size:12px; color:var(--muted); text-align:center; padding: 12px 0;">Nenhum lead</div>' : ''}
-        ${stageLeads.map(lead => `
-          <div class="kanban-card" draggable="true" data-id="${lead.id}"
-            ondragstart="onDragStart(event)" ondragend="onDragEnd(event)">
-            ${lead.origem ? `<div class="card-origem">📍 ${lead.origem}</div>` : ''}
-            <div class="card-name">${lead.name}</div>
-            <div class="card-phone">${lead.phone || '—'}</div>
-            <div class="card-email">${lead.email || '—'}</div>
-            ${lead.obs ? `<div class="card-obs">💬 ${lead.obs}</div>` : ''}
-            ${lead.proximaAcao ? `<div class="card-proxima">⏰ ${lead.proximaAcao}${lead.proximaData ? ' · ' + new Date(lead.proximaData + 'T12:00:00').toLocaleDateString('pt-BR') : ''}</div>` : ''}
-            <div style="font-size:10px;color:var(--muted);margin-top:4px;">${lead.createdAt ? 'Entrada: ' + new Date(lead.createdAt).toLocaleDateString('pt-BR') : ''}</div>
-            <div class="card-actions">
-              <button class="card-btn" onclick="editLead('${lead.id}')">Editar</button>
-              <button class="card-btn" onclick="openMoveModal('${lead.id}')">Mover</button>
-              <button class="card-btn" onclick="showHistory('${lead.id}')">Hist.</button>
-              <button class="card-btn del" onclick="deleteLead('${lead.id}')">✕</button>
-            </div>
-          </div>`).join('')}
+    // Header
+    const header = document.createElement('div');
+    header.className = 'kanban-col-header';
+    const headerLeft = document.createElement('div');
+    headerLeft.style.cssText = 'display:flex;align-items:center;gap:4px;flex:1;';
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'kanban-col-title';
+    titleDiv.id = 'col-title-' + stage.id;
+    titleDiv.textContent = stage.label;
+    const editBtn = document.createElement('button');
+    editBtn.title = 'Renomear coluna';
+    editBtn.textContent = '✏️';
+    editBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;';
+    editBtn.onmouseover = () => editBtn.style.opacity = '1';
+    editBtn.onmouseout = () => editBtn.style.opacity = '0.6';
+    editBtn.addEventListener('click', () => editStageLabel(stage.id));
+    const countSpan = document.createElement('span');
+    countSpan.className = 'kanban-col-count';
+    countSpan.textContent = stageLeads.length;
+    headerLeft.appendChild(titleDiv);
+    headerLeft.appendChild(editBtn);
+    header.appendChild(headerLeft);
+    header.appendChild(countSpan);
+    col.appendChild(header);
+
+    // Cards container
+    const cardsDiv = document.createElement('div');
+    cardsDiv.className = 'kanban-cards';
+    cardsDiv.id = 'col-' + stage.id;
+    if (stageLeads.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:12px;color:var(--muted);text-align:center;padding:12px 0;';
+      empty.textContent = 'Nenhum lead';
+      cardsDiv.appendChild(empty);
+    }
+    stageLeads.forEach(lead => {
+      const card = document.createElement('div');
+      card.className = 'kanban-card';
+      card.draggable = true;
+      card.dataset.id = lead.id;
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragend', onDragEnd);
+      let cardHTML = '';
+      if (lead.origem) cardHTML += `<div class="card-origem">📍 ${lead.origem}</div>`;
+      cardHTML += `<div class="card-name">${lead.name}</div>`;
+      cardHTML += `<div class="card-phone">${lead.phone || '—'}</div>`;
+      cardHTML += `<div class="card-email">${lead.email || '—'}</div>`;
+      if (lead.obs) cardHTML += `<div class="card-obs">💬 ${lead.obs}</div>`;
+      if (lead.proximaAcao) cardHTML += `<div class="card-proxima">⏰ ${lead.proximaAcao}${lead.proximaData ? ' · ' + new Date(lead.proximaData + 'T12:00:00').toLocaleDateString('pt-BR') : ''}</div>`;
+      if (lead.createdAt) cardHTML += `<div style="font-size:10px;color:var(--muted);margin-top:4px;">Entrada: ${new Date(lead.createdAt).toLocaleDateString('pt-BR')}</div>`;
+      cardHTML += `<div class="card-actions">
+        <button class="card-btn" onclick="editLead('${lead.id}')">Editar</button>
+        <button class="card-btn" onclick="openMoveModal('${lead.id}')">Mover</button>
+        <button class="card-btn" onclick="showHistory('${lead.id}')">Hist.</button>
+        <button class="card-btn del" onclick="deleteLead('${lead.id}')">✕</button>
       </div>`;
+      card.innerHTML = cardHTML;
+      cardsDiv.appendChild(card);
+    });
+    col.appendChild(cardsDiv);
 
     col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
     col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
