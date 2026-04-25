@@ -695,16 +695,41 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
-function doLogin() {
+async function doLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
   const cred = CREDENTIALS[user];
-  const effectivePass = getEffectivePassword(user);
-  if (!cred || effectivePass !== pass) {
+  // Map username to email for Firebase Auth
+  const emailMap = {
+    "admin": "admin@catapulta.com",
+    "raquel": "raquel@catapulta.com",
+    "vital": "vital@catapulta.com",
+    "petland": "petland@catapulta.com",
+    "contabiliza": "contabiliza@catapulta.com",
+    "english": "english@catapulta.com",
+    "thayelli": "thayelli@catapulta.com",
+    "adriana": "adriana@catapulta.com",
+    "travi": "travi@catapulta.com"
+  };
+  const email = emailMap[user];
+  if (!email || !cred) {
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
     return;
   }
+  
+  const loginBtn = document.querySelector('#login-overlay .login-btn');
+  if (loginBtn) { loginBtn.textContent = 'Entrando...'; loginBtn.disabled = true; }
+  
+  try {
+    await window._fb.loginUser(email, pass);
+  } catch(e) {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pass').value = '';
+    if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
+    return;
+  }
+  if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
   document.getElementById('login-overlay').style.display = 'none';
   const accountId = cred.act;
   const clientName = CLIENT_NAMES[accountId] || user;
@@ -1315,9 +1340,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-function doLogout() {
+async function doLogout() {
   if (!confirm('Deseja sair?')) return;
   clearSession();
+  if (window._fb) await window._fb.logoutUser();
   location.reload();
 }
 
@@ -1422,6 +1448,7 @@ function onCrmClientChange() {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBPdMSML950207trHI7i6hhdNpNjim_dLs",
@@ -1434,6 +1461,7 @@ function onCrmClientChange() {
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
 
   window._fb = {
     async getLeads() {
@@ -1457,6 +1485,12 @@ function onCrmClientChange() {
     async getPasswords() {
       const snap = await getDocs(collection(db, 'passwords'));
       return snap.docs.map(d => ({ user: d.id, pass: d.data().pass }));
+    },
+    async loginUser(email, password) {
+      return await signInWithEmailAndPassword(auth, email, password);
+    },
+    async logoutUser() {
+      return await signOut(auth);
     },
     async savePassword(user, pass) {
       await updateDoc(doc(db, 'passwords', user), { pass }).catch(async () => {
@@ -1551,9 +1585,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-function doLogout() {
+async function doLogout() {
   if (!confirm('Deseja sair?')) return;
   clearSession();
+  if (window._fb) await window._fb.logoutUser();
   location.reload();
 }
 
@@ -2455,16 +2490,41 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
-function doLogin() {
+async function doLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
   const cred = CREDENTIALS[user];
-  const effectivePass = getEffectivePassword(user);
-  if (!cred || effectivePass !== pass) {
+  // Map username to email for Firebase Auth
+  const emailMap = {
+    "admin": "admin@catapulta.com",
+    "raquel": "raquel@catapulta.com",
+    "vital": "vital@catapulta.com",
+    "petland": "petland@catapulta.com",
+    "contabiliza": "contabiliza@catapulta.com",
+    "english": "english@catapulta.com",
+    "thayelli": "thayelli@catapulta.com",
+    "adriana": "adriana@catapulta.com",
+    "travi": "travi@catapulta.com"
+  };
+  const email = emailMap[user];
+  if (!email || !cred) {
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
     return;
   }
+  
+  const loginBtn = document.querySelector('#login-overlay .login-btn');
+  if (loginBtn) { loginBtn.textContent = 'Entrando...'; loginBtn.disabled = true; }
+  
+  try {
+    await window._fb.loginUser(email, pass);
+  } catch(e) {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pass').value = '';
+    if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
+    return;
+  }
+  if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
   document.getElementById('login-overlay').style.display = 'none';
   const accountId = cred.act;
   const clientName = CLIENT_NAMES[accountId] || user;
@@ -3075,9 +3135,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-function doLogout() {
+async function doLogout() {
   if (!confirm('Deseja sair?')) return;
   clearSession();
+  if (window._fb) await window._fb.logoutUser();
   location.reload();
 }
 
