@@ -884,6 +884,7 @@ function stageColor(idx) { return STAGE_COLORS[idx % STAGE_COLORS.length]; }
 const CRM_KEY = 'catapulta_crm_v1';
 let crmClientFilter = null;
 let dragCard = null;
+let dragCol = null;
 
 // Firebase-backed lead storage with localStorage cache
 let _leadsCache = null;
@@ -1012,9 +1013,11 @@ function renderKanban() {
     col.className = `kanban-col ${stage.cls}`;
     col.dataset.stage = stage.id;
 
-    // Header
+    // Header com drag para reordenar coluna
     const header = document.createElement('div');
     header.className = 'kanban-col-header';
+    header.style.cursor = 'grab';
+    header.title = 'Arraste para reordenar';
     const headerLeft = document.createElement('div');
     headerLeft.style.cssText = 'display:flex;align-items:center;gap:4px;flex:1;';
     const titleDiv = document.createElement('div');
@@ -1027,7 +1030,7 @@ function renderKanban() {
     editBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;';
     editBtn.onmouseover = () => editBtn.style.opacity = '1';
     editBtn.onmouseout = () => editBtn.style.opacity = '0.6';
-    editBtn.addEventListener('click', () => editStageLabel(stage.id));
+    editBtn.addEventListener('click', (e) => { e.stopPropagation(); editStageLabel(stage.id); });
     const countSpan = document.createElement('span');
     countSpan.className = 'kanban-col-count';
     countSpan.textContent = stageLeads.length;
@@ -1036,6 +1039,50 @@ function renderKanban() {
     header.appendChild(headerLeft);
     header.appendChild(countSpan);
     col.appendChild(header);
+
+    // Drag coluna
+    col.draggable = true;
+    col.dataset.stageid = stage.id;
+    col.addEventListener('dragstart', (e) => {
+      if (e.target.closest('.kanban-card')) return;
+      dragCol = stage.id;
+      col.style.opacity = '0.5';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    col.addEventListener('dragend', () => {
+      dragCol = null;
+      col.style.opacity = '1';
+    });
+    col.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (dragCol && dragCol !== stage.id) col.style.borderColor = 'var(--accent)';
+      else if (!dragCol) col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', () => {
+      col.style.borderColor = '';
+      col.classList.remove('drag-over');
+    });
+    col.addEventListener('drop', (e) => {
+      e.preventDefault();
+      col.style.borderColor = '';
+      col.classList.remove('drag-over');
+      if (dragCol && dragCol !== stage.id) {
+        const act = getActForStages();
+        if (!act) return;
+        const stages = getStages(act);
+        const fromIdx = stages.findIndex(s => s.id === dragCol);
+        const toIdx = stages.findIndex(s => s.id === stage.id);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const reordered = [...stages];
+        const [moved] = reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, moved);
+        saveCustomStages(act, reordered);
+        dragCol = null;
+        renderKanban();
+      } else {
+        dropCard(stage.id);
+      }
+    });
 
     // Cards container
     const cardsDiv = document.createElement('div');
@@ -1073,17 +1120,15 @@ function renderKanban() {
     });
     col.appendChild(cardsDiv);
 
-    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
-    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
-    col.addEventListener('drop', e => { e.preventDefault(); col.classList.remove('drag-over'); dropCard(stage.id); });
-
     board.appendChild(col);
   });
 }
 
 function onDragStart(e) {
+  if (dragCol) return;
   dragCard = e.currentTarget.dataset.id;
   e.currentTarget.classList.add('dragging');
+  e.stopPropagation();
 }
 function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); dragCard = null; }
 
@@ -2774,6 +2819,22 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
+function togglePassVisibility() {
+  const input = document.getElementById('login-pass');
+  const eyeOn = document.getElementById('eye-icon');
+  const eyeOff = document.getElementById('eye-off-icon');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (eyeOn) eyeOn.style.display = 'none';
+    if (eyeOff) eyeOff.style.display = '';
+  } else {
+    input.type = 'password';
+    if (eyeOn) eyeOn.style.display = '';
+    if (eyeOff) eyeOff.style.display = 'none';
+  }
+}
+
 async function doLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
@@ -2896,11 +2957,26 @@ function editStageLabel(stageId) {
   const currentStages = getStages(act);
   const stage = currentStages.find(s => s.id === stageId);
   if (!stage) return;
-  const newLabel = prompt('Novo nome para a coluna:', stage.label);
-  if (newLabel === null || !newLabel.trim()) return;
-  const updated = currentStages.map(s => s.id === stageId ? { ...s, label: newLabel.trim() } : s);
-  saveCustomStages(act, updated);
-  renderKanban();
+  const titleEl = document.getElementById('col-title-' + stageId);
+  if (!titleEl) return;
+  const currentLabel = stage.label;
+  const input = document.createElement('input');
+  input.value = currentLabel;
+  input.style.cssText = 'background:var(--surface2);border:1px solid var(--accent);border-radius:4px;color:var(--fg);font-size:13px;font-weight:500;padding:2px 8px;width:130px;outline:none;';
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+  const save = () => {
+    const newLabel = input.value.trim() || currentLabel;
+    const updated = currentStages.map(s => s.id === stageId ? { ...s, label: newLabel } : s);
+    saveCustomStages(act, updated);
+    renderKanban();
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = currentLabel; input.blur(); }
+  });
 }
 
 function openStagesModal() {
@@ -3096,9 +3172,11 @@ function renderKanban() {
     col.className = `kanban-col ${stage.cls}`;
     col.dataset.stage = stage.id;
 
-    // Header
+    // Header com drag para reordenar coluna
     const header = document.createElement('div');
     header.className = 'kanban-col-header';
+    header.style.cursor = 'grab';
+    header.title = 'Arraste para reordenar';
     const headerLeft = document.createElement('div');
     headerLeft.style.cssText = 'display:flex;align-items:center;gap:4px;flex:1;';
     const titleDiv = document.createElement('div');
@@ -3111,7 +3189,7 @@ function renderKanban() {
     editBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;';
     editBtn.onmouseover = () => editBtn.style.opacity = '1';
     editBtn.onmouseout = () => editBtn.style.opacity = '0.6';
-    editBtn.addEventListener('click', () => editStageLabel(stage.id));
+    editBtn.addEventListener('click', (e) => { e.stopPropagation(); editStageLabel(stage.id); });
     const countSpan = document.createElement('span');
     countSpan.className = 'kanban-col-count';
     countSpan.textContent = stageLeads.length;
@@ -3120,6 +3198,50 @@ function renderKanban() {
     header.appendChild(headerLeft);
     header.appendChild(countSpan);
     col.appendChild(header);
+
+    // Drag coluna
+    col.draggable = true;
+    col.dataset.stageid = stage.id;
+    col.addEventListener('dragstart', (e) => {
+      if (e.target.closest('.kanban-card')) return;
+      dragCol = stage.id;
+      col.style.opacity = '0.5';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    col.addEventListener('dragend', () => {
+      dragCol = null;
+      col.style.opacity = '1';
+    });
+    col.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (dragCol && dragCol !== stage.id) col.style.borderColor = 'var(--accent)';
+      else if (!dragCol) col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', () => {
+      col.style.borderColor = '';
+      col.classList.remove('drag-over');
+    });
+    col.addEventListener('drop', (e) => {
+      e.preventDefault();
+      col.style.borderColor = '';
+      col.classList.remove('drag-over');
+      if (dragCol && dragCol !== stage.id) {
+        const act = getActForStages();
+        if (!act) return;
+        const stages = getStages(act);
+        const fromIdx = stages.findIndex(s => s.id === dragCol);
+        const toIdx = stages.findIndex(s => s.id === stage.id);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const reordered = [...stages];
+        const [moved] = reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, moved);
+        saveCustomStages(act, reordered);
+        dragCol = null;
+        renderKanban();
+      } else {
+        dropCard(stage.id);
+      }
+    });
 
     // Cards container
     const cardsDiv = document.createElement('div');
