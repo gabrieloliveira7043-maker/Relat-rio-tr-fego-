@@ -45,15 +45,6 @@ body {
 .layout { display: flex; min-height: 100vh; }
 
 /* Sidebar */
-/* Esconder scrollbars mas manter rolagem */
-* {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-*::-webkit-scrollbar {
-  display: none;
-}
-
 .sidebar {
   width: 220px; flex-shrink: 0;
   background: var(--surface); border-right: 1px solid var(--border);
@@ -61,6 +52,10 @@ body {
   position: fixed; height: 100vh; overflow-y: auto; z-index: 10;
 }
 .sidebar-logo { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
+.sidebar::-webkit-scrollbar { display: none; }
+.kanban-board::-webkit-scrollbar { display: none; }
+body::-webkit-scrollbar { display: none; }
+body { scrollbar-width: none; -ms-overflow-style: none; }
 .logo-mark { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
 .logo-icon {
   width: 28px; height: 28px;
@@ -393,7 +388,7 @@ tr:hover td { background: var(--surface2); }
     padding: 7px 12px; height: 36px; outline: none; font-family: 'Inter', sans-serif;
     display: none;
   }
-  .kanban-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; }
+  .kanban-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; scrollbar-width: none; -ms-overflow-style: none; }
   .kanban-col {
     flex-shrink: 0; width: 240px;
     background: var(--surface); border: 1px solid var(--border);
