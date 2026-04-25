@@ -180,6 +180,12 @@ input[type="date"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px va
 }
 .metric-card.featured::after { background: linear-gradient(90deg, transparent, rgba(124,109,250,0.5), transparent); }
 .metric-card:nth-child(1) { animation-delay: 0.04s; }
+.hide-leads-cols .col-cpl,
+.hide-leads-cols .col-leads { display: none; }
+.hide-conv-cols .col-conv,
+.hide-conv-cols .col-cpconv { display: none; }
+.hide-leads-cols2 .col-cpl,
+.hide-leads-cols2 .col-leads { display: none; }
 .metric-card:nth-child(2) { animation-delay: 0.08s; }
 .metric-card:nth-child(3) { animation-delay: 0.12s; }
 .metric-card:nth-child(4) { animation-delay: 0.16s; }
@@ -479,6 +485,25 @@ tr:hover td { background: var(--surface2); }
   .move-stage-btn:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-glow2); }
   .move-stage-btn.current { border-color: var(--accent); background: var(--accent-glow); color: var(--accent2); pointer-events: none; }
   .move-stage-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.card-origem { font-size: 10px; color: var(--accent2); margin-bottom: 3px; font-style: italic; }
+.card-proxima { font-size: 10px; color: var(--amber); margin-top: 4px; }
+.card-obs { font-size: 11px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-manage-stages {
+    padding: 0 18px; height: 36px;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r);
+    color: var(--text); font-size: 13px; font-weight: 500;
+    font-family: 'Inter', sans-serif; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.15s;
+  }
+.btn-manage-stages:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-glow2); }
+.stages-modal .modal-box { max-width: 400px; }
+.stage-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.stage-item input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--fg); font-size: 13px; }
+.stage-item .btn-del-stage { background: none; border: none; color: var(--red); cursor: pointer; font-size: 16px; padding: 0 4px; }
+.stage-item .stage-drag { cursor: grab; color: var(--muted); padding: 0 4px; }
+.btn-add-stage { margin-top: 12px; width: 100%; background: var(--surface2); border: 1px dashed var(--border); color: var(--muted); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.btn-add-stage:hover { border-color: var(--accent); color: var(--accent2); }
   .card-btn.move-btn { display: flex; align-items: center; gap: 4px; justify-content: center; }
 
   /* ===== MOBILE ===== */
@@ -695,6 +720,68 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
+function openStagesModal() {
+  const act = crmClientFilter || (activeClient ? activeClient.account : '');
+  if (!act) { alert('Selecione um cliente primeiro.'); return; }
+  const stages = getStages(act);
+  const list = document.getElementById('stages-list');
+  list.innerHTML = '';
+  stages.forEach((s, i) => {
+    const item = document.createElement('div');
+    item.className = 'stage-item';
+    item.dataset.idx = i;
+    item.innerHTML = `
+      <span class="stage-drag" title="Arrastar">☰</span>
+      <input type="text" value="${s.label}" placeholder="Nome da coluna">
+      <button class="btn-del-stage" onclick="this.parentElement.remove()" title="Remover">×</button>`;
+    list.appendChild(item);
+  });
+  document.getElementById('stages-modal').classList.add('open');
+}
+
+function addCustomStageItem() {
+  const list = document.getElementById('stages-list');
+  const item = document.createElement('div');
+  item.className = 'stage-item';
+  item.innerHTML = `
+    <span class="stage-drag" title="Arrastar">☰</span>
+    <input type="text" value="" placeholder="Nome da coluna">
+    <button class="btn-del-stage" onclick="this.parentElement.remove()">×</button>`;
+  list.appendChild(item);
+}
+
+function saveStagesFromModal() {
+  const act = crmClientFilter || (activeClient ? activeClient.account : '');
+  if (!act) return;
+  const items = document.querySelectorAll('#stages-list .stage-item input');
+  const stages = [];
+  items.forEach((inp, i) => {
+    const label = inp.value.trim();
+    if (!label) return;
+    const id = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') + '_' + i;
+    stages.push({ id, label, cls: stageColor(i) });
+  });
+  if (stages.length < 1) { alert('Adicione pelo menos uma coluna.'); return; }
+  saveCustomStages(act, stages);
+  document.getElementById('stages-modal').classList.remove('open');
+  renderKanban();
+}
+
+function togglePassVisibility() {
+  const input = document.getElementById('login-pass');
+  const eyeOn = document.getElementById('eye-icon');
+  const eyeOff = document.getElementById('eye-off-icon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    eyeOn.style.display = 'none';
+    eyeOff.style.display = '';
+  } else {
+    input.type = 'password';
+    eyeOn.style.display = '';
+    eyeOff.style.display = 'none';
+  }
+}
+
 function doLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
@@ -753,15 +840,31 @@ const STAGES_CLINICA = [
   { id: 'fechou',       label: 'Fechou',           cls: 'col-fechado' },
 ];
 
-const CLINICA_ACTS = ['act_1324786597927962', 'act_1311713804053571'];
+const CLINICA_ACTS = ['act_1324786597927962', 'act_1311713804053571', 'act_728532149829958', 'act_379348482601330', 'act_456685107743703'];
+
+function getCustomStages(act) {
+  try {
+    const raw = localStorage.getItem('custom_stages_' + act);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveCustomStages(act, stages) {
+  localStorage.setItem('custom_stages_' + act, JSON.stringify(stages));
+}
 
 function getStages(act) {
+  const custom = getCustomStages(act);
+  if (custom && custom.length) return custom;
   return CLINICA_ACTS.includes(act) ? STAGES_CLINICA : STAGES_DEFAULT;
 }
 
 function isClinicaClient(act) {
   return CLINICA_ACTS.includes(act);
 }
+
+const STAGE_COLORS = ['col-novo','col-contato','col-proposta','col-fechado','col-perdido'];
+function stageColor(idx) { return STAGE_COLORS[idx % STAGE_COLORS.length]; }
 
 const CRM_KEY = 'catapulta_crm_v1';
 let crmClientFilter = null;
@@ -868,6 +971,35 @@ function renderKanban() {
   board.innerHTML = '';
   buildCrmChart(leads, STAGES);
 
+  // Calcular valor fechado no mês atual
+  const now = new Date();
+  const mesAtual = now.getMonth();
+  const anoAtual = now.getFullYear();
+  let totalFechado = 0;
+  let qtdFechado = 0;
+  leads.forEach(l => {
+    if (['fechado','fechou'].includes(l.stage) && l.valor) {
+      const val = parseFloat(l.valor.replace(',','.').replace(/[^0-9.]/g,''));
+      if (!isNaN(val) && val > 0) {
+        const dt = new Date(l.updatedAt || l.createdAt || 0);
+        if (dt.getMonth() === mesAtual && dt.getFullYear() === anoAtual) {
+          totalFechado += val;
+          qtdFechado++;
+        }
+      }
+    }
+  });
+  const banner = document.getElementById('valor-fechado-banner');
+  if (banner) {
+    if (qtdFechado > 0) {
+      banner.style.display = 'flex';
+      document.getElementById('valor-fechado-total').textContent = 'R$ ' + totalFechado.toFixed(2).replace('.',',');
+      document.getElementById('valor-fechado-qtd').textContent = '(' + qtdFechado + ' fechamento' + (qtdFechado > 1 ? 's' : '') + ')';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
   STAGES.forEach(stage => {
     const stageLeads = leads.filter(l => l.stage === stage.id);
     const col = document.createElement('div');
@@ -884,9 +1016,13 @@ function renderKanban() {
         ${stageLeads.map(lead => `
           <div class="kanban-card" draggable="true" data-id="${lead.id}"
             ondragstart="onDragStart(event)" ondragend="onDragEnd(event)">
+            ${lead.origem ? `<div class="card-origem">📍 ${lead.origem}</div>` : ''}
             <div class="card-name">${lead.name}</div>
             <div class="card-phone">${lead.phone || '—'}</div>
             <div class="card-email">${lead.email || '—'}</div>
+            ${lead.obs ? `<div class="card-obs">💬 ${lead.obs}</div>` : ''}
+            ${lead.proximaAcao ? `<div class="card-proxima">⏰ ${lead.proximaAcao}${lead.proximaData ? ' · ' + new Date(lead.proximaData + 'T12:00:00').toLocaleDateString('pt-BR') : ''}</div>` : ''}
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">${lead.createdAt ? 'Entrada: ' + new Date(lead.createdAt).toLocaleDateString('pt-BR') : ''}</div>
             <div class="card-actions">
               <button class="card-btn" onclick="editLead('${lead.id}')">Editar</button>
               <button class="card-btn" onclick="openMoveModal('${lead.id}')">Mover</button>
@@ -936,13 +1072,28 @@ function openLeadModal() {
   document.getElementById('lead-plantao').value = '';
   document.getElementById('lead-valor').value = '';
   document.getElementById('lead-stage').value = 'novo';
+  document.getElementById('lead-origem').value = '';
+  document.getElementById('lead-obs').value = '';
+  document.getElementById('lead-motivo').value = '';
+  document.getElementById('lead-proxima-acao').value = '';
+  document.getElementById('lead-proxima-data').value = '';
   document.getElementById('modal-title').textContent = 'Novo lead';
   document.getElementById('field-plantao').style.display = clinica ? 'block' : 'none';
   document.getElementById('field-valor').style.display = 'none';
+  document.getElementById('field-motivo-perda').style.display = 'none';
+  // Mostrar valor se etapa já for fechado
+  const initStage = document.getElementById('lead-stage').value;
+  if (['fechado','fechou'].includes(initStage)) document.getElementById('field-valor').style.display = 'block';
   // update stage options
   const stageSelect = document.getElementById('lead-stage');
   const stages = clinica ? STAGES_CLINICA : STAGES_DEFAULT;
   stageSelect.innerHTML = stages.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+  document.getElementById('lead-stage').addEventListener('change', function() {
+    const isPerdido = ['perdido','ncompareceu'].includes(this.value);
+    const isFechado = ['fechado','fechou'].includes(this.value);
+    document.getElementById('field-motivo-perda').style.display = isPerdido ? 'block' : 'none';
+    document.getElementById('field-valor').style.display = isFechado ? 'block' : 'none';
+  });
   document.getElementById('lead-modal').classList.add('open');
 }
 
@@ -956,8 +1107,15 @@ function editLead(id) {
   document.getElementById('lead-email').value = lead.email || '';
   document.getElementById('lead-plantao').value = lead.plantao || '';
   document.getElementById('lead-valor').value = lead.valor || '';
+  document.getElementById('lead-origem').value = lead.origem || '';
+  document.getElementById('lead-obs').value = lead.obs || '';
+  document.getElementById('lead-motivo').value = lead.motivo || '';
+  document.getElementById('lead-proxima-acao').value = lead.proximaAcao || '';
+  document.getElementById('lead-proxima-data').value = lead.proximaData || '';
   document.getElementById('field-plantao').style.display = clinica ? 'block' : 'none';
-  document.getElementById('field-valor').style.display = clinica ? 'block' : 'none';
+  const isFechadoEdit = ['fechado','fechou'].includes(lead.stage);
+  document.getElementById('field-valor').style.display = isFechadoEdit ? 'block' : 'none';
+  document.getElementById('field-motivo-perda').style.display = (lead.stage === 'perdido' || lead.stage === 'ncompareceu') ? 'block' : 'none';
   const stageSelect = document.getElementById('lead-stage');
   const stages = clinica ? STAGES_CLINICA : STAGES_DEFAULT;
   stageSelect.innerHTML = stages.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
@@ -995,9 +1153,15 @@ async function saveLead() {
     email: document.getElementById('lead-email').value.trim(),
     plantao: document.getElementById('lead-plantao').value,
     valor: document.getElementById('lead-valor').value.trim(),
+    origem: document.getElementById('lead-origem').value.trim(),
+    obs: document.getElementById('lead-obs').value.trim(),
+    motivo: document.getElementById('lead-motivo').value.trim(),
+    proximaAcao: document.getElementById('lead-proxima-acao').value.trim(),
+    proximaData: document.getElementById('lead-proxima-data').value,
     stage: newStage,
     act, history,
     createdAt: existing ? existing.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     _docId: existing ? (existing._docId || null) : null
   };
   if (_leadsCache) {
@@ -1721,9 +1885,17 @@ function onCrmClientChange() {
     </div>
     <div class="login-field">
       <label class="login-label">Senha</label>
-      <input type="password" class="login-input" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+      <div style="position:relative;">
+        <input type="password" class="login-input" id="login-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px;">
+        <button type="button" onclick="togglePassVisibility()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:0;color:var(--muted);" id="btn-toggle-pass">
+          <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="eye-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </button>
+      </div>
     </div>
+
     <button class="login-btn" onclick="doLogin()">Entrar</button>
+
   </div>
 </div>
 
@@ -1846,23 +2018,31 @@ function onCrmClientChange() {
             <div class="metric-value" id="m-freq">—</div>
             <div class="metric-sub">média por pessoa</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card" id="card-cpl">
             <div class="metric-icon" style="background:var(--red-dim)">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
-            <div class="metric-label">CPL</div>
+            <div class="metric-label" id="card-cpl-label">CPL</div>
             <div class="metric-value" id="m-cpl">—</div>
-            <div class="metric-sub">custo por lead</div>
+            <div class="metric-sub" id="card-cpl-sub">custo por lead</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card" id="card-conv">
             <div class="metric-icon" style="background:var(--blue-dim)">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             </div>
             <div class="metric-label">Conversas iniciadas</div>
             <div class="metric-value" id="m-conv">—</div>
-            <div class="metric-sub" id="m-conv-sub">custo por conversa</div>
+            <div class="metric-sub">quantidade no período</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card" id="card-cpconv">
+            <div class="metric-icon" style="background:var(--blue-dim)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="metric-label">Custo/conversa</div>
+            <div class="metric-value" id="m-cpconv">—</div>
+            <div class="metric-sub">por conversa iniciada</div>
+          </div>
+          <div class="metric-card" id="card-leads">
             <div class="metric-icon" style="background:var(--red-dim)">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.6 3.38 2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             </div>
@@ -1899,17 +2079,17 @@ function onCrmClientChange() {
         <div class="table-card">
           <table>
             <thead>
-              <tr>
+              <tr id="table-header-row">
                 <th style="width:24%">Campanha</th>
                 <th style="width:9%">Status</th>
                 <th style="width:10%">Gasto</th>
                 <th style="width:7%">CTR</th>
                 <th style="width:9%">CPM</th>
                 <th style="width:7%">Freq.</th>
-                <th style="width:9%">CPL</th>
-                <th style="width:7%">Leads</th>
-                <th style="width:9%">Conv. inic.</th>
-                <th style="width:9%">Custo/conv.</th>
+                <th style="width:9%" class="col-cpl">CPL</th>
+                <th style="width:7%" class="col-leads">Leads</th>
+                <th style="width:9%" class="col-conv">Conv. inic.</th>
+                <th style="width:9%" class="col-cpconv">Custo/conv.</th>
               </tr>
             </thead>
             <tbody id="campaigns-body">
@@ -1931,11 +2111,17 @@ function onCrmClientChange() {
           <select class="crm-client-select" id="crm-client-select" onchange="onCrmClientChange()">
             <option value="all">Todos os clientes</option>
           </select>
+          <button class="btn-manage-stages" onclick="openStagesModal()" style="margin-right:8px;">⚙ Colunas</button>
           <button class="btn-add-lead" onclick="openLeadModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Novo lead
           </button>
         </div>
+      </div>
+      <div id="valor-fechado-banner" style="display:none; background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); border-radius:8px; padding:10px 16px; margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span style="font-size:13px; color:var(--green); font-weight:500;">Fechamentos no mês: <strong id="valor-fechado-total">R$ 0,00</strong></span>
+        <span style="font-size:12px; color:var(--muted); margin-left:4px;" id="valor-fechado-qtd"></span>
       </div>
       <div class="kanban-board" id="kanban-board"></div>
 
@@ -1992,6 +2178,26 @@ function onCrmClientChange() {
           <label class="modal-label">Valor do fechamento (R$)</label>
           <input type="text" class="modal-input" id="lead-valor" placeholder="Ex: 3500,00">
         </div>
+        <div class="modal-field">
+          <label class="modal-label">Origem</label>
+          <input type="text" class="modal-input" id="lead-origem" placeholder="Ex: Anúncio Stories, Google, Indicação...">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Observações</label>
+          <textarea class="modal-input" id="lead-obs" rows="2" placeholder="Anotações sobre o lead..." style="resize:vertical;"></textarea>
+        </div>
+        <div class="modal-field" id="field-motivo-perda" style="display:none;">
+          <label class="modal-label">Motivo da perda</label>
+          <input type="text" class="modal-input" id="lead-motivo" placeholder="Ex: Preço, sem resposta, escolheu concorrente...">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Próxima ação</label>
+          <input type="text" class="modal-input" id="lead-proxima-acao" placeholder="Ex: Ligar segunda às 10h">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Data da próxima ação</label>
+          <input type="date" class="modal-input" id="lead-proxima-data">
+        </div>
         <input type="hidden" id="lead-id">
         <div class="modal-footer">
           <button class="modal-btn-cancel" onclick="closeLeadModal()">Cancelar</button>
@@ -2001,6 +2207,22 @@ function onCrmClientChange() {
     </div>
 
   
+    <!-- Stages Manager Modal -->
+    <div class="modal-overlay stages-modal" id="stages-modal">
+      <div class="modal-box">
+        <div class="panel-header" style="margin-bottom:16px;">
+          <div class="modal-title">Gerenciar colunas do kanban</div>
+          <button class="btn-close-panel" onclick="document.getElementById('stages-modal').classList.remove('open')">×</button>
+        </div>
+        <div id="stages-list"></div>
+        <button class="btn-add-stage" onclick="addCustomStageItem()">+ Adicionar coluna</button>
+        <div class="modal-footer" style="margin-top:16px;">
+          <button class="modal-btn-cancel" onclick="document.getElementById('stages-modal').classList.remove('open')">Cancelar</button>
+          <button class="modal-btn-save" onclick="saveStagesFromModal()">Salvar colunas</button>
+        </div>
+      </div>
+    </div>
+
     <!-- History Modal -->
     <div class="modal-overlay" id="history-modal">
       <div class="modal-box" style="max-width:360px;">
@@ -2257,7 +2479,63 @@ async function loadData() {
     animVal('m-leads', totalLeads ? fmtNum(totalLeads) : '—');
     animVal('m-leads-sub', totalLeads ? 'custo: ' + fmtBRL(cpl) : 'custo por lead');
     animVal('m-conv', totalConv ? fmtNum(totalConv) : '—');
-    animVal('m-conv-sub', totalConv ? 'custo: ' + fmtBRL(cpConv) : 'custo por conversa');
+    animVal('m-cpconv', totalConv ? fmtBRL(cpConv) : '—');
+
+    // Lógica de ocultação por cliente
+    const act = activeClient ? activeClient.account : '';
+    const isPetland     = act === 'act_728532149829958';
+    const isTravi       = act === 'act_379348482601330';
+    const isContabiliza = act === 'act_1515794876111984';
+
+    const tableHeader = document.getElementById('table-header-row');
+    if (tableHeader) {
+      const table = tableHeader.closest('table');
+      if (table) {
+        // Petland: oculta leads/CPL
+        if (isPetland) table.classList.add('hide-leads-cols'); else table.classList.remove('hide-leads-cols');
+        // Travi: oculta conv/custo-conv
+        if (isTravi) table.classList.add('hide-conv-cols'); else table.classList.remove('hide-conv-cols');
+        // Contabiliza: oculta leads/CPL
+        if (isContabiliza) table.classList.add('hide-leads-cols2'); else table.classList.remove('hide-leads-cols2');
+      }
+    }
+
+    const cardLeads  = document.getElementById('card-leads');
+    const cardCpl    = document.getElementById('card-cpl');
+    const cardCplLabel = document.getElementById('card-cpl-label');
+    const cardCplSub   = document.getElementById('card-cpl-sub');
+    const cardConv   = document.getElementById('card-conv');
+    const cardCpconv = document.getElementById('card-cpconv');
+
+    // Petland: oculta leads, ajusta CPL para custo/conversa
+    if (isPetland) {
+      if (cardLeads)  cardLeads.style.display = 'none';
+      if (cardCplLabel) cardCplLabel.textContent = 'Custo/conversa';
+      if (cardCplSub)   cardCplSub.textContent = 'por conversa iniciada';
+      animVal('m-cpl', totalConv ? fmtBRL(cpConv) : '—');
+    } else {
+      if (cardLeads)  cardLeads.style.display = '';
+      if (cardCplLabel) cardCplLabel.textContent = 'CPL';
+      if (cardCplSub)   cardCplSub.textContent = 'custo por lead';
+      animVal('m-cpl', totalLeads ? fmtBRL(cpl) : '—');
+    }
+
+    // Travi: oculta conversas iniciadas e custo/conversa
+    if (isTravi) {
+      if (cardConv)   cardConv.style.display = 'none';
+      if (cardCpconv) cardCpconv.style.display = 'none';
+    } else {
+      if (cardConv)   cardConv.style.display = '';
+      if (cardCpconv) cardCpconv.style.display = '';
+    }
+
+    // Contabiliza: oculta leads e CPL
+    if (isContabiliza) {
+      if (cardLeads)  cardLeads.style.display = 'none';
+      if (cardCpl)    cardCpl.style.display = 'none';
+    } else if (!isPetland) {
+      if (cardCpl)    cardCpl.style.display = '';
+    }
 
     document.getElementById('campaigns-body').innerHTML = data.map(d => {
       const spend = parseFloat(d.spend || 0);
@@ -2274,10 +2552,10 @@ async function loadData() {
         <td>${fmt(d.ctr || 0)}%</td>
         <td>${fmtBRL(d.cpm || 0)}</td>
         <td>${fmt(d.frequency || 0)}</td>
-        <td>${leads ? fmtBRL(cplRow) : '—'}</td>
-        <td>${leads || '—'}</td>
-        <td>${convRow || '—'}</td>
-        <td>${convRow ? fmtBRL(cpConvRow) : '—'}</td>
+        <td class="col-cpl">${leads ? fmtBRL(cplRow) : '—'}</td>
+        <td class="col-leads">${leads || '—'}</td>
+        <td class="col-conv">${convRow || '—'}</td>
+        <td class="col-cpconv">${convRow ? fmtBRL(cpConvRow) : '—'}</td>
       </tr>`;
     }).join('');
 
@@ -2555,7 +2833,7 @@ const STAGES_CLINICA = [
   { id: 'fechou',       label: 'Fechou',           cls: 'col-fechado' },
 ];
 
-const CLINICA_ACTS = ['act_1324786597927962', 'act_1311713804053571'];
+const CLINICA_ACTS = ['act_1324786597927962', 'act_1311713804053571', 'act_728532149829958', 'act_379348482601330', 'act_456685107743703'];
 
 function getStages(act) {
   return CLINICA_ACTS.includes(act) ? STAGES_CLINICA : STAGES_DEFAULT;
