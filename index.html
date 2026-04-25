@@ -810,39 +810,7 @@ function togglePassVisibility() {
   }
 }
 
-function doLogin() {
-  const user = document.getElementById('login-user').value.trim().toLowerCase();
-  const pass = document.getElementById('login-pass').value;
-  const cred = CREDENTIALS[user];
-  const effectivePass = getEffectivePassword(user);
-  if (!cred || effectivePass !== pass) {
-    document.getElementById('login-error').style.display = 'block';
-    document.getElementById('login-pass').value = '';
-    return;
-  }
-  document.getElementById('login-overlay').style.display = 'none';
-  const accountId = cred.act;
-  const clientName = CLIENT_NAMES[accountId] || user;
-  if (accountId) {
-    activeClient = { name: clientName, account: accountId };
-    document.getElementById('page-title').textContent = clientName;
-    document.getElementById('page-meta').textContent = accountId;
-  } else {
-    document.getElementById('page-title').textContent = 'Admin';
-    document.getElementById('page-meta').textContent = 'Catapulta Digital';
-  }
-  document.getElementById('welcome-state').style.display = 'none';
-  isAdmin = (user === 'admin');
-  setupCrmForClient();
-  renderSidebar();
-  updateMobileHeader();
-  updateSidebarForUser();
-  const mobileNav = document.getElementById('mobile-nav');
-  if (mobileNav) mobileNav.style.display = 'flex';
-  const mobileFilters = document.getElementById('mobile-filters');
-  if (mobileFilters) mobileFilters.style.display = 'flex';
-  saveSession(user);
-}
+// doLogin handled by async version below
 
 
 document.addEventListener('keydown', e => {
@@ -2135,7 +2103,7 @@ function onCrmClientChange() {
           </button>
         </div>
       </div>
-      <div id="valor-fechado-banner" style="display:none; background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); border-radius:8px; padding:10px 16px; margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+      <div id="valor-fechado-banner" style="background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); border-radius:8px; padding:10px 16px; margin-bottom:14px; align-items:center; gap:10px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <span style="font-size:13px; color:var(--green); font-weight:500;">Fechamentos no mês: <strong id="valor-fechado-total">R$ 0,00</strong></span>
         <span style="font-size:12px; color:var(--muted); margin-left:4px;" id="valor-fechado-qtd"></span>
@@ -2759,42 +2727,29 @@ async function doLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
   const cred = CREDENTIALS[user];
-  // Map username to email for Firebase Auth
-  const emailMap = {
-    "admin": "admin@catapulta.com",
-    "raquel": "raquel@catapulta.com",
-    "vital": "vital@catapulta.com",
-    "petland": "petland@catapulta.com",
-    "contabiliza": "contabiliza@catapulta.com",
-    "english": "english@catapulta.com",
-    "thayelli": "thayelli@catapulta.com",
-    "adriana": "adriana@catapulta.com",
-    "travi": "travi@catapulta.com"
-  };
-  const email = emailMap[user];
-  if (!email || !cred) {
+
+  if (!cred) {
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
     return;
   }
-  
+
   const loginBtn = document.querySelector('#login-overlay .login-btn');
   if (loginBtn) { loginBtn.textContent = 'Entrando...'; loginBtn.disabled = true; }
-  
-  // Wait for Firebase to be ready
+
+  // Esperar Firebase estar pronto para carregar senhas
   if (!window._fbReady) {
     await new Promise(resolve => window.addEventListener('fbready', resolve, { once: true }));
   }
-  
-  try {
-    await window._fb.loginUser(email, pass);
-  } catch(e) {
-    console.error('Firebase login error:', e);
+
+  const effectivePass = getEffectivePassword(user);
+  if (!effectivePass || effectivePass !== pass) {
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
     if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
     return;
   }
+
   if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false; }
   document.getElementById('login-overlay').style.display = 'none';
   const accountId = cred.act;
@@ -2807,12 +2762,7 @@ async function doLogin() {
     document.getElementById('page-title').textContent = 'Admin';
     document.getElementById('page-meta').textContent = 'Catapulta Digital';
   }
-  // sidebar-footer kept visible for logout button
   document.getElementById('welcome-state').style.display = 'none';
-  if (window.innerWidth <= 768) {
-    const mobileNavUrl = document.getElementById('mobile-nav');
-    if (mobileNavUrl) mobileNavUrl.style.display = 'flex';
-  }
   updateMobileHeader();
   isAdmin = (user === 'admin');
   setupCrmForClient();
@@ -2965,6 +2915,23 @@ function renderKanban() {
   board.innerHTML = '';
   buildCrmChart(leads, STAGES);
 
+  // Calcular valor fechado total
+  let totalFechado = 0;
+  let qtdFechado = 0;
+  leads.forEach(l => {
+    if (['fechado','fechou'].includes(l.stage) && l.valor) {
+      const raw = String(l.valor).replace(/[^0-9,.]/g,'').replace(',','.');
+      const val = parseFloat(raw);
+      if (!isNaN(val) && val > 0) { totalFechado += val; qtdFechado++; }
+    }
+  });
+  const banner = document.getElementById('valor-fechado-banner');
+  if (banner) {
+    banner.style.display = 'flex';
+    document.getElementById('valor-fechado-total').textContent = 'R$ ' + totalFechado.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('valor-fechado-qtd').textContent = qtdFechado > 0 ? '(' + qtdFechado + ' fechamento' + (qtdFechado > 1 ? 's' : '') + ')' : '';
+  }
+
   STAGES.forEach(stage => {
     const stageLeads = leads.filter(l => l.stage === stage.id);
     const col = document.createElement('div');
@@ -2973,7 +2940,10 @@ function renderKanban() {
 
     col.innerHTML = `
       <div class="kanban-col-header">
-        <div class="kanban-col-title">${stage.label}</div>
+        <div style="display:flex;align-items:center;gap:4px;flex:1;">
+          <div class="kanban-col-title" id="col-title-${stage.id}">${stage.label}</div>
+          <button onclick="editStageLabel('${stage.id}')" title="Renomear coluna" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:11px;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✏️</button>
+        </div>
         <span class="kanban-col-count">${stageLeads.length}</span>
       </div>
       <div class="kanban-cards" id="col-${stage.id}">
@@ -2981,9 +2951,13 @@ function renderKanban() {
         ${stageLeads.map(lead => `
           <div class="kanban-card" draggable="true" data-id="${lead.id}"
             ondragstart="onDragStart(event)" ondragend="onDragEnd(event)">
+            ${lead.origem ? `<div class="card-origem">📍 ${lead.origem}</div>` : ''}
             <div class="card-name">${lead.name}</div>
             <div class="card-phone">${lead.phone || '—'}</div>
             <div class="card-email">${lead.email || '—'}</div>
+            ${lead.obs ? `<div class="card-obs">💬 ${lead.obs}</div>` : ''}
+            ${lead.proximaAcao ? `<div class="card-proxima">⏰ ${lead.proximaAcao}${lead.proximaData ? ' · ' + new Date(lead.proximaData + 'T12:00:00').toLocaleDateString('pt-BR') : ''}</div>` : ''}
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">${lead.createdAt ? 'Entrada: ' + new Date(lead.createdAt).toLocaleDateString('pt-BR') : ''}</div>
             <div class="card-actions">
               <button class="card-btn" onclick="editLead('${lead.id}')">Editar</button>
               <button class="card-btn" onclick="openMoveModal('${lead.id}')">Mover</button>
@@ -3015,6 +2989,7 @@ function dropCard(stageId) {
     const STAGES = getStages(leads[idx].act);
     const stageLabel = STAGES.find(s => s.id === stageId)?.label || stageId;
     leads[idx].stage = stageId;
+    leads[idx].updatedAt = new Date().toISOString();
     if (!leads[idx].history) leads[idx].history = [];
     leads[idx].history.push({ stage: stageLabel, at: new Date().toLocaleString('pt-BR') });
     _leadsCache = leads;
