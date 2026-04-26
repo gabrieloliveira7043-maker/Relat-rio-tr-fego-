@@ -2644,9 +2644,13 @@ function selectClientByAct(act) {
 
   renderSidebar();
 
-  // If CRM is open, refresh it
+  // Atualizar view ativa
   const crmView = document.getElementById('crm-view');
   if (crmView && crmView.style.display !== 'none') renderKanban();
+  const contView = document.getElementById('contatos-view');
+  if (contView && contView.style.display !== 'none') renderContatos();
+  const atView = document.getElementById('atendimento-view');
+  if (atView && atView.style.display !== 'none') renderAtendimento();
 }
 
 
@@ -3386,14 +3390,30 @@ function renderAtendimento() {
   const list = document.getElementById('atendimento-leads-list');
   const empty = document.getElementById('atendimento-empty');
   if (!list) return;
-  const leads = getLeads();
-  if (leads.length === 0) {
+
+  let leads = getLeads();
+
+  // Filtrar por cliente logado (igual ao CRM)
+  if (!isAdmin && activeClient && activeClient.account) {
+    leads = leads.filter(l => l.act === activeClient.account);
+  } else if (isAdmin) {
+    const sel = document.getElementById('crm-client-select');
+    if (sel && sel.value && sel.value !== 'all') {
+      leads = leads.filter(l => l.act === sel.value);
+    }
+  }
+
+  // Só leads com telefone
+  const leadsComPhone = leads.filter(l => (l.phone||'').replace(/\D/g,'').length > 0);
+
+  if (leadsComPhone.length === 0) {
     list.innerHTML = '';
     if (empty) empty.style.display = 'block';
     return;
   }
   if (empty) empty.style.display = 'none';
-  list.innerHTML = leads.map(l => {
+
+  list.innerHTML = leadsComPhone.map(l => {
     const phone = (l.phone||'').replace(/\D/g,'');
     return phone ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:8px;">
       <div>
