@@ -588,8 +588,10 @@ tr:hover td { background: var(--surface2); }
     .kanban-card { width: 100%; box-sizing: border-box; overflow: hidden; }
     .card-email { max-width: 100%; }
     .crm-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-    .crm-actions { width: 100%; }
-    .btn-add-lead { width: 100%; justify-content: center; }
+    .crm-actions { width: 100%; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 4px; }
+    .crm-actions::-webkit-scrollbar { display: none; }
+    .btn-add-lead { flex-shrink: 0; white-space: nowrap; }
+    .crm-client-select { flex-shrink: 0; min-width: 160px; }
     .crm-title { font-size: 16px; }
     .crm-view { padding: 14px; overflow-x: hidden; box-sizing: border-box; }
 
