@@ -1011,6 +1011,41 @@ async function deleteLeadFromDb(id) {
   _leadsCache = (_leadsCache || []).filter(l => l.id !== id);
 }
 
+function abrirContatos() {
+  // Esconder todas as views
+  const views = ['topbar', 'content', 'crm-view', 'conta-view', 'contatos-view', 'atendimento-view'];
+  document.querySelector('.topbar').style.display = 'none';
+  document.querySelector('.content').style.display = 'none';
+  const crmV = document.getElementById('crm-view'); if(crmV) crmV.style.display = 'none';
+  const contaV = document.getElementById('conta-view'); if(contaV) contaV.style.display = 'none';
+  const atV = document.getElementById('atendimento-view'); if(atV) atV.style.display = 'none';
+  // Mostrar contatos
+  const contV = document.getElementById('contatos-view');
+  if (contV) { contV.style.display = 'block'; contV.style.visibility = 'visible'; contV.style.opacity = '1'; }
+  // Nav active
+  ['report','crm','conta','contatos','atendimento'].forEach(v => {
+    const el = document.getElementById('nav-' + v);
+    if (el) el.classList.toggle('active', v === 'contatos');
+  });
+  // Carregar dados
+  if (!_leadsCache) { getLeadsAsync().then(() => renderContatos()); } else { renderContatos(); }
+}
+
+function abrirAtendimento() {
+  document.querySelector('.topbar').style.display = 'none';
+  document.querySelector('.content').style.display = 'none';
+  const crmV = document.getElementById('crm-view'); if(crmV) crmV.style.display = 'none';
+  const contaV = document.getElementById('conta-view'); if(contaV) contaV.style.display = 'none';
+  const contV = document.getElementById('contatos-view'); if(contV) contV.style.display = 'none';
+  const atV = document.getElementById('atendimento-view');
+  if (atV) { atV.style.display = 'block'; atV.style.visibility = 'visible'; atV.style.opacity = '1'; }
+  ['report','crm','conta','contatos','atendimento'].forEach(v => {
+    const el = document.getElementById('nav-' + v);
+    if (el) el.classList.toggle('active', v === 'atendimento');
+  });
+  if (!_leadsCache) { getLeadsAsync().then(() => renderAtendimento()); } else { renderAtendimento(); }
+}
+
 function switchView(view) {
   ['report','crm','conta','contatos','atendimento'].forEach(v => {
     const el = document.getElementById('nav-' + v);
@@ -2099,11 +2134,11 @@ function onCrmClientChange() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Conta
         </div>
-        <div class="nav-item" id="nav-contatos" onclick="switchView('contatos')">
+        <div class="nav-item" id="nav-contatos" onclick="abrirContatos()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
           Contatos
         </div>
-        <div class="nav-item" id="nav-atendimento" onclick="switchView('atendimento')">
+        <div class="nav-item" id="nav-atendimento" onclick="abrirAtendimento()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Atendimento
         </div>
