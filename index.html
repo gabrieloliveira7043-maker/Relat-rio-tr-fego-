@@ -2134,11 +2134,11 @@ function onCrmClientChange() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Conta
         </div>
-        <div class="nav-item" id="nav-contatos" onclick="abrirContatos()">
+        <div class="nav-item" id="nav-contatos" onclick="if(window.abrirContatos) abrirContatos(); else switchView('contatos')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
           Contatos
         </div>
-        <div class="nav-item" id="nav-atendimento" onclick="abrirAtendimento()">
+        <div class="nav-item" id="nav-atendimento" onclick="if(window.abrirAtendimento) abrirAtendimento(); else switchView('atendimento')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Atendimento
         </div>
@@ -3001,7 +3001,7 @@ const CLIENT_NAMES = {
   "act_379348482601330":  "Travi",
 };
 
-function abrirContatos() {
+window.abrirContatos = function abrirContatos() {
   try {
     const topbar = document.querySelector('.topbar');
     if(topbar) topbar.style.display = 'none';
@@ -3020,7 +3020,7 @@ function abrirContatos() {
   } catch(e) { console.error('abrirContatos erro:', e); }
 }
 
-function abrirAtendimento() {
+window.abrirAtendimento = function abrirAtendimento() {
   try {
     const topbar = document.querySelector('.topbar');
     if(topbar) topbar.style.display = 'none';
