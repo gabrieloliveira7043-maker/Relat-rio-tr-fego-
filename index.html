@@ -1632,6 +1632,7 @@ function switchCrmChart(type) {
 
 window.addEventListener('fbready', () => {
   loadCustomPasswords();
+  loadExtraClients();
   getLeadsAsync().then(() => {
     if (document.getElementById('crm-view') && document.getElementById('crm-view').style.display === 'block') {
       renderKanban();
@@ -1730,6 +1731,18 @@ function updateSidebarForUser() {
 
 // Passwords stored in Firebase
 let _customPasswords = {};
+
+async function loadExtraClients() {
+  if (!window._fbReady) return;
+  try {
+    const extras = await window._fb.getExtraClients();
+    extras.forEach(c => {
+      CREDENTIALS[c.login] = { pass: c.pass, act: c.act };
+      CLIENT_NAMES[c.act] = c.name;
+    });
+    renderSidebar();
+  } catch(e) { console.warn('loadExtraClients erro:', e); }
+}
 
 async function loadCustomPasswords() {
   if (!window._fbReady) return;
@@ -1866,10 +1879,25 @@ function onCrmClientChange() {
     async savePassword(user, pass) {
       await updateDoc(doc(db, 'passwords', user), { pass }).catch(async () => {
         await addDoc(collection(db, 'passwords'), { pass });
-        // use setDoc instead
       });
       const { setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
       await setDoc(doc(db, 'passwords', user), { pass });
+    },
+    async getExtraClients() {
+      const { setDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      try {
+        const snap = await getDocs(collection(db, 'extra_clients'));
+        return snap.docs.map(d => ({ login: d.id, ...d.data() }));
+      } catch(e) { return []; }
+    },
+    async saveExtraClient(login, name, act, pass) {
+      const { setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      await setDoc(doc(db, 'extra_clients', login), { name, act, pass });
+      await setDoc(doc(db, 'passwords', login), { pass });
+    },
+    async deleteExtraClient(login) {
+      await deleteDoc(doc(db, 'extra_clients', login));
+      await deleteDoc(doc(db, 'passwords', login));
     }
   };
   window._fbReady = true;
@@ -1877,6 +1905,7 @@ function onCrmClientChange() {
 
 window.addEventListener('fbready', () => {
   loadCustomPasswords();
+  loadExtraClients();
   getLeadsAsync().then(() => {
     if (document.getElementById('crm-view') && document.getElementById('crm-view').style.display === 'block') {
       renderKanban();
@@ -2550,20 +2579,25 @@ function onCrmClientChange() {
     <div class="panel-title">Configurar clientes</div>
     <button class="btn-close-panel" onclick="closeConfig()">×</button>
   </div>
-  <div class="panel-desc">Adicione o nome, Ad Account ID e Access Token de cada cliente. Os dados ficam salvos no navegador.</div>
+  <div class="panel-desc">Adicione um novo cliente. Ele aparecerá na sidebar e terá login próprio.</div>
   <div class="field-group">
     <label class="field-label">Nome do cliente</label>
     <input type="text" class="field-input" id="cfg-name" placeholder="Ex: Clínica Vital">
   </div>
   <div class="field-group">
+    <label class="field-label">Login (sem espaços)</label>
+    <input type="text" class="field-input mono" id="cfg-login" placeholder="Ex: vital">
+  </div>
+  <div class="field-group">
+    <label class="field-label">Senha</label>
+    <input type="text" class="field-input mono" id="cfg-senha" placeholder="Ex: vital123">
+  </div>
+  <div class="field-group">
     <label class="field-label">Ad Account ID</label>
     <input type="text" class="field-input mono" id="cfg-account" placeholder="act_123456789">
   </div>
-  <div class="field-group">
-    <label class="field-label">Access Token</label>
-    <input type="text" class="field-input mono" id="cfg-token" placeholder="EAAxxxxxxx...">
-  </div>
-  <button class="btn-save" onclick="saveClient()">Salvar cliente</button>
+  <button class="btn-save" id="btn-salvar-cliente" onclick="saveClient()">Salvar cliente</button>
+  <div id="cfg-feedback" style="font-size:13px;margin-top:8px;display:none;"></div>
   <div class="saved-list" id="saved-list"></div>
 </div>
 
@@ -2577,25 +2611,68 @@ function getClients() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY
 function setClients(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
 function initials(name) { return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 
-function saveClient() {
+async function saveClient() {
   const name = document.getElementById('cfg-name').value.trim();
+  const login = document.getElementById('cfg-login').value.trim().toLowerCase().replace(/\s+/g,'');
+  const senha = document.getElementById('cfg-senha').value.trim();
   const account = document.getElementById('cfg-account').value.trim();
-  const token = document.getElementById('cfg-token').value.trim();
-  if (!name || !account || !token) { alert('Preencha todos os campos.'); return; }
-  const clients = getClients().filter(c => c.name !== name);
-  clients.push({ name, account, token });
-  setClients(clients);
-  document.getElementById('cfg-name').value = '';
-  document.getElementById('cfg-account').value = '';
-  document.getElementById('cfg-token').value = '';
+  const feedback = document.getElementById('cfg-feedback');
+  const btn = document.getElementById('btn-salvar-cliente');
+
+  if (!name || !login || !senha || !account) {
+    feedback.style.display = 'block';
+    feedback.style.color = '#f87171';
+    feedback.textContent = 'Preencha todos os campos.';
+    return;
+  }
+  if (!account.startsWith('act_')) {
+    feedback.style.display = 'block';
+    feedback.style.color = '#f87171';
+    feedback.textContent = 'Ad Account ID deve começar com act_';
+    return;
+  }
+
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
+  feedback.style.display = 'none';
+
+  try {
+    await window._fb.saveExtraClient(login, name, account, senha);
+    // Atualizar dinâmicamente
+    CREDENTIALS[login] = { pass: senha, act: account };
+    CLIENT_NAMES[account] = name;
+    // Limpar campos
+    document.getElementById('cfg-name').value = '';
+    document.getElementById('cfg-login').value = '';
+    document.getElementById('cfg-senha').value = '';
+    document.getElementById('cfg-account').value = '';
+    feedback.style.display = 'block';
+    feedback.style.color = '#34d399';
+    feedback.textContent = `Cliente "${name}" salvo com sucesso!`;
+    renderSavedList();
+    renderSidebar();
+    setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+  } catch(e) {
+    feedback.style.display = 'block';
+    feedback.style.color = '#f87171';
+    feedback.textContent = 'Erro ao salvar: ' + e.message;
+  }
+  btn.textContent = 'Salvar cliente';
+  btn.disabled = false;
   renderAll();
 }
 
-function removeClient(name) {
-  const clients = getClients().filter(c => c.name !== name);
-  setClients(clients);
-  if (activeClient && activeClient.name === name) activeClient = null;
-  renderAll();
+async function removeExtraClient(login, name) {
+  if (!confirm('Remover cliente "' + name + '"? Isso também remove o login.')) return;
+  try {
+    await window._fb.deleteExtraClient(login);
+    delete CREDENTIALS[login];
+    Object.keys(CLIENT_NAMES).forEach(act => {
+      if (CLIENT_NAMES[act] === name) delete CLIENT_NAMES[act];
+    });
+    renderSavedList();
+    renderSidebar();
+  } catch(e) { alert('Erro ao remover: ' + e.message); }
 }
 
 function selectClient(name) {
@@ -2655,15 +2732,21 @@ function selectClientByAct(act) {
 }
 
 
-function renderSavedList() {
-  const clients = getClients();
+async function renderSavedList() {
   const el = document.getElementById('saved-list');
-  if (!clients.length) { el.innerHTML = ''; return; }
-  el.innerHTML = '<div class="saved-list-label">Clientes salvos</div>' +
-    clients.map(c => `
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin:16px 0 8px;">Carregando...</div>';
+  try {
+    const extras = await window._fb.getExtraClients();
+    if (!extras.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin:16px 0 8px;">Nenhum cliente extra adicionado.</div>';
+      return;
+    }
+    el.innerHTML = '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;">Clientes adicionados</div>' +
+      extras.map(c => `
       <div class="saved-item">
-        <div><div class="saved-name">${c.name}</div><div class="saved-id">${c.account}</div></div>
-        <button class="btn-remove" onclick="removeClient('${c.name.replace(/'/g,"\\'")}')">Remover</button>
+        <div><div class="saved-name">${c.name}</div><div class="saved-id">${c.act} · login: ${c.login}</div></div>
+        <button class="btn-remove" onclick="removeExtraClient('${c.login}','${c.name}')">Remover</button>
       </div>`).join('');
 }
 
@@ -4008,6 +4091,7 @@ function switchCrmChart(type) {
 
 window.addEventListener('fbready', () => {
   loadCustomPasswords();
+  loadExtraClients();
   getLeadsAsync().then(() => {
     if (document.getElementById('crm-view') && document.getElementById('crm-view').style.display === 'block') {
       renderKanban();
@@ -4135,6 +4219,18 @@ function onMobileClientChange() {
 
 // Passwords stored in Firebase
 let _customPasswords = {};
+
+async function loadExtraClients() {
+  if (!window._fbReady) return;
+  try {
+    const extras = await window._fb.getExtraClients();
+    extras.forEach(c => {
+      CREDENTIALS[c.login] = { pass: c.pass, act: c.act };
+      CLIENT_NAMES[c.act] = c.name;
+    });
+    renderSidebar();
+  } catch(e) { console.warn('loadExtraClients erro:', e); }
+}
 
 async function loadCustomPasswords() {
   if (!window._fbReady) return;
