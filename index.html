@@ -4235,6 +4235,7 @@ async function loadExtraClients() {
       restoreSession();
     } else {
       renderSidebar();
+      updateSidebarForUser(); // Atualiza mobile-client-select com novos clientes
     }
   } catch(e) { console.warn('loadExtraClients erro:', e); }
 }
