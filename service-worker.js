@@ -1,4 +1,4 @@
-const CACHE_NAME = 'catapulta-v1';
+const CACHE_NAME = 'catapulta-v2';
 const ASSETS = [
   '/',
   '/index.html',
