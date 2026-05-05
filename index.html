@@ -584,9 +584,43 @@ tr:hover td { background: var(--surface2); }
     .metric-icon { width: 26px; height: 26px; margin-bottom: 10px; }
     .metric-sub { font-size: 10px; }
 
-    /* Table scroll */
-    .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table { min-width: 680px; font-size: 12px; }
+    /* Table → Cards no mobile */
+    .table-card { overflow-x: visible; }
+    table { min-width: 0; font-size: 13px; }
+    table thead { display: none; }
+    #campaigns-body tr {
+      display: block;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      padding: 12px 14px;
+    }
+    #campaigns-body td.name-cell {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      padding: 0 0 10px 0;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: normal;
+      overflow: visible;
+    }
+    #campaigns-body td:not(.name-cell) {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border: none;
+      font-size: 12px;
+    }
+    #campaigns-body td:not(.name-cell)::before {
+      content: attr(data-label);
+      color: var(--muted2);
+      font-size: 11px;
+      font-weight: 500;
+    }
 
     /* Chart */
     .table-card canvas { height: 180px !important; }
@@ -2907,16 +2941,16 @@ async function loadData() {
       const cpConvRow = convRow ? spend / convRow : 0;
       const isActive = (statusMap[d.campaign_id] || '').toUpperCase() === 'ACTIVE';
       return `<tr>
-        <td class="name-cell" title="${d.campaign_name}">${d.campaign_name}</td>
-        <td><span class="status-pill ${isActive ? 'active' : 'paused'}"><span class="status-dot"></span>${isActive ? 'Ativa' : 'Pausada'}</span></td>
-        <td>${fmtBRL(spend)}</td>
-        <td>${fmt(d.ctr || 0)}%</td>
-        <td>${fmtBRL(d.cpm || 0)}</td>
-        <td>${fmt(d.frequency || 0)}</td>
-        <td class="col-cpl">${leads ? fmtBRL(cplRow) : '—'}</td>
-        <td class="col-leads">${leads || '—'}</td>
-        <td class="col-conv">${convRow || '—'}</td>
-        <td class="col-cpconv">${convRow ? fmtBRL(cpConvRow) : '—'}</td>
+        <td class="name-cell" title="${d.campaign_name}" data-label="Campanha">${d.campaign_name}</td>
+        <td data-label="Status"><span class="status-pill ${isActive ? 'active' : 'paused'}"><span class="status-dot"></span>${isActive ? 'Ativa' : 'Pausada'}</span></td>
+        <td data-label="Gasto">${fmtBRL(spend)}</td>
+        <td data-label="CTR">${fmt(d.ctr || 0)}%</td>
+        <td data-label="CPM">${fmtBRL(d.cpm || 0)}</td>
+        <td data-label="Freq.">${fmt(d.frequency || 0)}</td>
+        <td class="col-cpl" data-label="CPL">${leads ? fmtBRL(cplRow) : '—'}</td>
+        <td class="col-leads" data-label="Leads">${leads || '—'}</td>
+        <td class="col-conv" data-label="Conv. inic.">${convRow || '—'}</td>
+        <td class="col-cpconv" data-label="Custo/conv.">${convRow ? fmtBRL(cpConvRow) : '—'}</td>
       </tr>`;
     }).join('');
 
